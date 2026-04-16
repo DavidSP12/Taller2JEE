@@ -57,14 +57,14 @@ public class RabbitMQPublisher implements QueuePublisher, AutoCloseable {
                 channel.close();
             }
         } catch (Exception ex) {
-            LOGGER.log(Level.FINE, "Failed to close RabbitMQ channel", ex);
+            LOGGER.log(Level.WARNING, "Failed to close RabbitMQ channel", ex);
         }
         try {
             if (connection != null && connection.isOpen()) {
                 connection.close();
             }
         } catch (Exception ex) {
-            LOGGER.log(Level.FINE, "Failed to close RabbitMQ connection", ex);
+            LOGGER.log(Level.WARNING, "Failed to close RabbitMQ connection", ex);
         }
     }
 }
