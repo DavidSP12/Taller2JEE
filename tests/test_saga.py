@@ -66,6 +66,7 @@ class EvaluationSagaTests(unittest.TestCase):
 
         self.assertEqual(exam_repository.count_submissions(), 0)
         self.assertEqual(student_repository.count_grades(), 0)
+        self.assertEqual(student_repository.count_students(), 0)
 
 
 if __name__ == "__main__":

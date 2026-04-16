@@ -37,10 +37,19 @@ class EmailSender:
         message["From"] = self.from_email
         message["To"] = event.student_email
 
-        with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=20) as smtp:
-            smtp.starttls()
-            smtp.login(self.smtp_user, self.smtp_password)
-            smtp.sendmail(self.from_email, [event.student_email], message.as_string())
+        try:
+            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=20) as smtp:
+                smtp.starttls()
+                smtp.login(self.smtp_user, self.smtp_password)
+                smtp.sendmail(self.from_email, [event.student_email], message.as_string())
+        except smtplib.SMTPAuthenticationError as exc:
+            raise RuntimeError("SMTP authentication failed") from exc
+        except smtplib.SMTPConnectError as exc:
+            raise RuntimeError(
+                f"SMTP connection failed to {self.smtp_host}:{self.smtp_port}"
+            ) from exc
+        except smtplib.SMTPException as exc:
+            raise RuntimeError("SMTP send operation failed") from exc
 
 
 def consume_email_notifications(
@@ -53,7 +62,8 @@ def consume_email_notifications(
     channel.queue_declare(queue=queue_name, durable=True)
 
     def callback(ch, method, properties, body):
-        retry_count = int((properties.headers or {}).get("x-retries", 0)) if properties else 0
+        headers = properties.headers if properties and properties.headers else {}
+        retry_count = int(headers.get("x-retries", 0))
         try:
             event = EmailEvent.from_json(body.decode("utf-8"))
             email_sender.send_result_email(event)

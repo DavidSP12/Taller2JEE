@@ -86,3 +86,7 @@ class StudentRepository:
     def count_grades(self) -> int:
         with self._connect() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM grades").fetchone()[0])
+
+    def count_students(self) -> int:
+        with self._connect() as conn:
+            return int(conn.execute("SELECT COUNT(*) FROM students").fetchone()[0])
