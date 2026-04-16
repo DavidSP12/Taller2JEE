@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from concurrent import futures
 from pathlib import Path
 
@@ -49,7 +50,10 @@ def build_default_orchestrator() -> EvaluationSagaOrchestrator:
     base_data_path = Path("data")
     exam_repository = ExamRepository(str(base_data_path / "exam.db"))
     student_repository = StudentRepository(str(base_data_path / "student.db"))
-    publisher = RabbitMQPublisher(host="localhost", queue_name="email_notifications")
+    publisher = RabbitMQPublisher(
+        host=os.getenv("RABBITMQ_HOST", "localhost"),
+        queue_name=os.getenv("RABBITMQ_QUEUE", "email_notifications"),
+    )
 
     answer_key = {"Q1": "A", "Q2": "C", "Q3": "B", "Q4": "D"}
 
@@ -74,4 +78,4 @@ def serve(port: int = 50051) -> None:
 
 
 if __name__ == "__main__":
-    serve()
+    serve(port=int(os.getenv("GRPC_PORT", "50051")))

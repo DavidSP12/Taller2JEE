@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit loopback_users []"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - app_net
+
+  logic_service:
+    image: python:3.12-slim
+    container_name: logic_service
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt &&
+      PYTHONPATH=src python -m logic_service.grpc_server"
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_QUEUE: email_notifications
+      GRPC_PORT: 50051
+    volumes:
+      - ./:/app
+      - logic_data:/app/data
+    ports:
+      - "50051:50051"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app_net
+
+  email_service:
+    image: python:3.12-slim
+    container_name: email_service
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt &&
+      PYTHONPATH=src python -m email_service.consumer"
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_QUEUE: email_notifications
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-user@example.com}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-changeme}
+      SMTP_FROM: ${SMTP_FROM:-noreply@example.com}
+    volumes:
+      - ./:/app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app_net
+
+volumes:
+  logic_data:
+
+networks:
+  app_net:
+    driver: bridge

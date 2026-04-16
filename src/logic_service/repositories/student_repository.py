@@ -1,92 +1,81 @@
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
+
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import Session
+
+from logic_service.db_models import Base, GradeRow, StudentRow
 
 
 class StudentRepository:
+    """Repository for student records and grades backed by SQLAlchemy ORM.
+
+    Accepts a file path to a SQLite database.  To use PostgreSQL (or any other
+    SQLAlchemy-supported database) instantiate the repository with a full
+    connection URL instead, e.g. ``"postgresql+psycopg2://user:pass@host/db"``.
+    """
+
     def __init__(self, db_path: str) -> None:
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._init_db()
-
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.db_path)
-
-    def _init_db(self) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS students (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    email TEXT NOT NULL
-                )
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS grades (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    student_id TEXT NOT NULL,
-                    evaluation_id TEXT NOT NULL,
-                    score REAL NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY(student_id) REFERENCES students(id)
-                )
-                """
-            )
-            conn.commit()
+        # Accept either a bare file path (→ SQLite) or a full SQLAlchemy URL.
+        if "://" in db_path:
+            url = db_path
+        else:
+            path = Path(db_path).absolute()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            url = f"sqlite:///{path}"
+        self._engine = create_engine(url)
+        Base.metadata.create_all(self._engine)
 
     def upsert_student(self, student_id: str, name: str, email: str) -> bool:
-        created = False
-        with self._connect() as conn:
-            existing = conn.execute(
-                "SELECT 1 FROM students WHERE id = ? LIMIT 1", (student_id,)
-            ).fetchone()
+        with Session(self._engine) as session:
+            existing = session.get(StudentRow, student_id)
             created = existing is None
-            conn.execute(
-                """
-                INSERT INTO students (id, name, email)
-                VALUES (?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET name=excluded.name, email=excluded.email
-                """,
-                (student_id, name, email),
-            )
-            conn.commit()
+            if existing is None:
+                session.add(StudentRow(id=student_id, name=name, email=email))
+            else:
+                existing.name = name
+                existing.email = email
+            session.commit()
         return created
 
     def save_grade(self, student_id: str, evaluation_id: str, score: float) -> int:
-        with self._connect() as conn:
-            cursor = conn.execute(
-                """
-                INSERT INTO grades (student_id, evaluation_id, score)
-                VALUES (?, ?, ?)
-                """,
-                (student_id, evaluation_id, score),
+        with Session(self._engine) as session:
+            row = GradeRow(
+                student_id=student_id,
+                evaluation_id=evaluation_id,
+                score=score,
             )
-            conn.commit()
-            return int(cursor.lastrowid)
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+            return row.id
 
     def delete_grade(self, grade_id: int) -> None:
-        with self._connect() as conn:
-            conn.execute("DELETE FROM grades WHERE id = ?", (grade_id,))
-            conn.commit()
+        with Session(self._engine) as session:
+            row = session.get(GradeRow, grade_id)
+            if row is not None:
+                session.delete(row)
+                session.commit()
 
     def delete_student_if_no_grades(self, student_id: str) -> None:
-        with self._connect() as conn:
-            grade_count = conn.execute(
-                "SELECT COUNT(*) FROM grades WHERE student_id = ?",
-                (student_id,),
-            ).fetchone()[0]
-            if grade_count == 0:
-                conn.execute("DELETE FROM students WHERE id = ?", (student_id,))
-            conn.commit()
+        with Session(self._engine) as session:
+            count = session.scalar(
+                select(func.count())
+                .select_from(GradeRow)
+                .where(GradeRow.student_id == student_id)
+            ) or 0
+            if count == 0:
+                student = session.get(StudentRow, student_id)
+                if student is not None:
+                    session.delete(student)
+                    session.commit()
 
     def count_grades(self) -> int:
-        with self._connect() as conn:
-            return int(conn.execute("SELECT COUNT(*) FROM grades").fetchone()[0])
+        with Session(self._engine) as session:
+            return session.scalar(select(func.count()).select_from(GradeRow)) or 0
 
     def count_students(self) -> int:
-        with self._connect() as conn:
-            return int(conn.execute("SELECT COUNT(*) FROM students").fetchone()[0])
+        with Session(self._engine) as session:
+            return session.scalar(select(func.count()).select_from(StudentRow)) or 0
+
