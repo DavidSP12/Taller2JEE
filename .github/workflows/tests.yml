@@ -11,26 +11,19 @@ permissions:
 
 jobs:
   test:
-    name: Unit Tests (Python ${{ matrix.python-version }})
+    name: Unit Tests (Java 17)
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+          distribution: temurin
+          java-version: "17"
+          cache: maven
 
       - name: Run unit tests
-        run: PYTHONPATH=src python -m unittest discover -s tests -v
+        run: mvn -B -q test

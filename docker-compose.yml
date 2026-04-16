@@ -20,12 +20,11 @@ services:
       - app_net
 
   logic_service:
-    image: python:3.12-slim
+    image: maven:3.9.9-eclipse-temurin-17
     container_name: logic_service
     working_dir: /app
     command: >
-      sh -c "pip install --no-cache-dir -r requirements.txt &&
-      PYTHONPATH=src python -m logic_service.grpc_server"
+      sh -c "mvn -q -DskipTests compile exec:java -Dexec.mainClass=com.taller2jee.logic.grpc.GrpcServerApplication"
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_QUEUE: email_notifications
@@ -33,6 +32,7 @@ services:
     volumes:
       - ./:/app
       - logic_data:/app/data
+      - maven_cache:/root/.m2
     ports:
       - "50051:50051"
     depends_on:
@@ -42,12 +42,11 @@ services:
       - app_net
 
   email_service:
-    image: python:3.12-slim
+    image: maven:3.9.9-eclipse-temurin-17
     container_name: email_service
     working_dir: /app
     command: >
-      sh -c "pip install --no-cache-dir -r requirements.txt &&
-      PYTHONPATH=src python -m email_service.consumer"
+      sh -c "mvn -q -DskipTests compile exec:java -Dexec.mainClass=com.taller2jee.email.EmailConsumerApplication"
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_QUEUE: email_notifications
@@ -58,6 +57,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-noreply@example.com}
     volumes:
       - ./:/app
+      - maven_cache:/root/.m2
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -66,6 +66,7 @@ services:
 
 volumes:
   logic_data:
+  maven_cache:
 
 networks:
   app_net:
