@@ -43,7 +43,7 @@ public class ExamRepository {
         }
     }
 
-    public void deleteSubmission(long submissionId) {
+    public void deleteSubmission(Long submissionId) {
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
         try {

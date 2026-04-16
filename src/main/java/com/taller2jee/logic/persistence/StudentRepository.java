@@ -64,7 +64,7 @@ public class StudentRepository {
         }
     }
 
-    public void deleteGrade(long gradeId) {
+    public void deleteGrade(Long gradeId) {
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
         try {
