@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -7,6 +8,8 @@ from email.mime.text import MIMEText
 import pika
 
 from common.models import EmailEvent
+
+LOGGER = logging.getLogger(__name__)
 
 
 class EmailSender:
@@ -49,10 +52,27 @@ def consume_email_notifications(
     channel = connection.channel()
     channel.queue_declare(queue=queue_name, durable=True)
 
-    def callback(ch, method, _properties, body):
-        event = EmailEvent.from_json(body.decode("utf-8"))
-        email_sender.send_result_email(event)
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+    def callback(ch, method, properties, body):
+        retry_count = int((properties.headers or {}).get("x-retries", 0)) if properties else 0
+        try:
+            event = EmailEvent.from_json(body.decode("utf-8"))
+            email_sender.send_result_email(event)
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception:
+            LOGGER.exception("Failed to process email event. retry=%s", retry_count)
+            if retry_count < 3:
+                ch.basic_publish(
+                    exchange="",
+                    routing_key=queue_name,
+                    body=body,
+                    properties=pika.BasicProperties(
+                        delivery_mode=2,
+                        headers={"x-retries": retry_count + 1},
+                    ),
+                )
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+            else:
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     channel.basic_qos(prefetch_count=10)
     channel.basic_consume(queue=queue_name, on_message_callback=callback)
@@ -61,6 +81,7 @@ def consume_email_notifications(
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     sender = EmailSender(
         smtp_host=os.getenv("SMTP_HOST", "smtp.gmail.com"),
         smtp_port=int(os.getenv("SMTP_PORT", "587")),

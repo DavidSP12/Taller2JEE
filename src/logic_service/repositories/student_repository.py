@@ -73,9 +73,14 @@ class StudentRepository:
             conn.execute("DELETE FROM grades WHERE id = ?", (grade_id,))
             conn.commit()
 
-    def delete_student(self, student_id: str) -> None:
+    def delete_student_if_no_grades(self, student_id: str) -> None:
         with self._connect() as conn:
-            conn.execute("DELETE FROM students WHERE id = ?", (student_id,))
+            grade_count = conn.execute(
+                "SELECT COUNT(*) FROM grades WHERE student_id = ?",
+                (student_id,),
+            ).fetchone()[0]
+            if grade_count == 0:
+                conn.execute("DELETE FROM students WHERE id = ?", (student_id,))
             conn.commit()
 
     def count_grades(self) -> int:

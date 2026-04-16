@@ -21,22 +21,30 @@ class RabbitMQPublisher(QueuePublisher):
     def __init__(self, host: str = "localhost", queue_name: str = "email_notifications") -> None:
         self.host = host
         self.queue_name = queue_name
+        self._connection = None
+        self._channel = None
 
-    def publish_email_result(self, event: EmailEvent) -> None:
+    def _ensure_channel(self):
         if pika is None:
             raise RuntimeError("pika is required to publish messages to RabbitMQ")
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host))
-        try:
-            channel = connection.channel()
-            channel.queue_declare(queue=self.queue_name, durable=True)
-            channel.basic_publish(
-                exchange="",
-                routing_key=self.queue_name,
-                body=event.to_json().encode("utf-8"),
-                properties=pika.BasicProperties(delivery_mode=2),
-            )
-        finally:
-            connection.close()
+        if self._connection is None or self._connection.is_closed:
+            self._connection = pika.BlockingConnection(pika.ConnectionParameters(host=self.host))
+            self._channel = self._connection.channel()
+            self._channel.queue_declare(queue=self.queue_name, durable=True)
+        return self._channel
+
+    def publish_email_result(self, event: EmailEvent) -> None:
+        channel = self._ensure_channel()
+        channel.basic_publish(
+            exchange="",
+            routing_key=self.queue_name,
+            body=event.to_json().encode("utf-8"),
+            properties=pika.BasicProperties(delivery_mode=2),
+        )
+
+    def close(self) -> None:
+        if self._connection is not None and not self._connection.is_closed:
+            self._connection.close()
 
 
 class InMemoryPublisher(QueuePublisher):

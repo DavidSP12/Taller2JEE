@@ -57,7 +57,7 @@ class EvaluationSagaOrchestrator:
             if grade_id is not None:
                 self.student_repository.delete_grade(grade_id)
             if created_student:
-                self.student_repository.delete_student(submission.student_id)
+                self.student_repository.delete_student_if_no_grades(submission.student_id)
             if submission_id is not None:
                 self.exam_repository.delete_submission(submission_id)
             raise DistributedTransactionError("Saga failed, compensating actions applied") from exc
