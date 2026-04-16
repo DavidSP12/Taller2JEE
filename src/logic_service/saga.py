@@ -29,11 +29,12 @@ class EvaluationSagaOrchestrator:
         score = self._calculate_score(submission)
         submission_id = None
         grade_id = None
+        created_student = False
 
         try:
             submission_id = self.exam_repository.save_submission(submission, score)
 
-            self.student_repository.upsert_student(
+            created_student = self.student_repository.upsert_student(
                 student_id=submission.student_id,
                 name=submission.student_name,
                 email=submission.student_email,
@@ -55,6 +56,8 @@ class EvaluationSagaOrchestrator:
         except Exception as exc:
             if grade_id is not None:
                 self.student_repository.delete_grade(grade_id)
+            if created_student:
+                self.student_repository.delete_student(submission.student_id)
             if submission_id is not None:
                 self.exam_repository.delete_submission(submission_id)
             raise DistributedTransactionError("Saga failed, compensating actions applied") from exc

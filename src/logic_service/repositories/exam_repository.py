@@ -51,3 +51,7 @@ class ExamRepository:
         with self._connect() as conn:
             conn.execute("DELETE FROM exam_submissions WHERE id = ?", (submission_id,))
             conn.commit()
+
+    def count_submissions(self) -> int:
+        with self._connect() as conn:
+            return int(conn.execute("SELECT COUNT(*) FROM exam_submissions").fetchone()[0])

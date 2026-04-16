@@ -38,8 +38,13 @@ class StudentRepository:
             )
             conn.commit()
 
-    def upsert_student(self, student_id: str, name: str, email: str) -> None:
+    def upsert_student(self, student_id: str, name: str, email: str) -> bool:
+        created = False
         with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT 1 FROM students WHERE id = ? LIMIT 1", (student_id,)
+            ).fetchone()
+            created = existing is None
             conn.execute(
                 """
                 INSERT INTO students (id, name, email)
@@ -49,6 +54,7 @@ class StudentRepository:
                 (student_id, name, email),
             )
             conn.commit()
+        return created
 
     def save_grade(self, student_id: str, evaluation_id: str, score: float) -> int:
         with self._connect() as conn:
@@ -66,3 +72,12 @@ class StudentRepository:
         with self._connect() as conn:
             conn.execute("DELETE FROM grades WHERE id = ?", (grade_id,))
             conn.commit()
+
+    def delete_student(self, student_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute("DELETE FROM students WHERE id = ?", (student_id,))
+            conn.commit()
+
+    def count_grades(self) -> int:
+        with self._connect() as conn:
+            return int(conn.execute("SELECT COUNT(*) FROM grades").fetchone()[0])

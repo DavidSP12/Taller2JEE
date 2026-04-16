@@ -1,4 +1,3 @@
-import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -53,9 +52,11 @@ class EvaluationSagaTests(unittest.TestCase):
         self.assertEqual(len(publisher.messages), 1)
 
     def test_process_failure_applies_compensation(self):
+        exam_repository = ExamRepository(self.exam_db)
+        student_repository = StudentRepository(self.student_db)
         orchestrator = EvaluationSagaOrchestrator(
-            exam_repository=ExamRepository(self.exam_db),
-            student_repository=StudentRepository(self.student_db),
+            exam_repository=exam_repository,
+            student_repository=student_repository,
             queue_publisher=FailingPublisher(),
             answer_key=self.answer_key,
         )
@@ -63,13 +64,8 @@ class EvaluationSagaTests(unittest.TestCase):
         with self.assertRaises(DistributedTransactionError):
             orchestrator.process(self._build_submission())
 
-        with sqlite3.connect(self.exam_db) as conn:
-            exam_rows = conn.execute("SELECT COUNT(*) FROM exam_submissions").fetchone()[0]
-        with sqlite3.connect(self.student_db) as conn:
-            grade_rows = conn.execute("SELECT COUNT(*) FROM grades").fetchone()[0]
-
-        self.assertEqual(exam_rows, 0)
-        self.assertEqual(grade_rows, 0)
+        self.assertEqual(exam_repository.count_submissions(), 0)
+        self.assertEqual(student_repository.count_grades(), 0)
 
 
 if __name__ == "__main__":
