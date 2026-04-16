@@ -21,7 +21,9 @@ class StudentRepository:
         if "://" in db_path:
             url = db_path
         else:
-            url = f"sqlite:///{Path(db_path).absolute()}"
+            path = Path(db_path).absolute()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            url = f"sqlite:///{path}"
         self._engine = create_engine(url)
         Base.metadata.create_all(self._engine)
 
