@@ -1,57 +1,58 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import Session
+
 from common.models import EvaluationSubmission
+from logic_service.db_models import Base, ExamSubmissionRow
 
 
 class ExamRepository:
+    """Repository for exam submissions backed by SQLAlchemy ORM.
+
+    Accepts a file path to a SQLite database.  To use PostgreSQL (or any other
+    SQLAlchemy-supported database) instantiate the repository with a full
+    connection URL instead, e.g. ``"postgresql+psycopg2://user:pass@host/db"``.
+    """
+
     def __init__(self, db_path: str) -> None:
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._init_db()
-
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self.db_path)
-
-    def _init_db(self) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS exam_submissions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    evaluation_id TEXT NOT NULL,
-                    student_id TEXT NOT NULL,
-                    answers_json TEXT NOT NULL,
-                    score REAL NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-            conn.commit()
+        # Accept either a bare file path (→ SQLite) or a full SQLAlchemy URL.
+        if "://" in db_path:
+            url = db_path
+        else:
+            url = f"sqlite:///{Path(db_path).absolute()}"
+        self._engine = create_engine(url)
+        Base.metadata.create_all(self._engine)
 
     def save_submission(self, submission: EvaluationSubmission, score: float) -> int:
         answers_json = json.dumps(
             [{"question_id": a.question_id, "answer": a.answer} for a in submission.answers]
         )
-        with self._connect() as conn:
-            cursor = conn.execute(
-                """
-                INSERT INTO exam_submissions (evaluation_id, student_id, answers_json, score)
-                VALUES (?, ?, ?, ?)
-                """,
-                (submission.evaluation_id, submission.student_id, answers_json, score),
+        with Session(self._engine) as session:
+            row = ExamSubmissionRow(
+                evaluation_id=submission.evaluation_id,
+                student_id=submission.student_id,
+                answers_json=answers_json,
+                score=score,
             )
-            conn.commit()
-            return int(cursor.lastrowid)
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+            return row.id
 
     def delete_submission(self, submission_id: int) -> None:
-        with self._connect() as conn:
-            conn.execute("DELETE FROM exam_submissions WHERE id = ?", (submission_id,))
-            conn.commit()
+        with Session(self._engine) as session:
+            row = session.get(ExamSubmissionRow, submission_id)
+            if row is not None:
+                session.delete(row)
+                session.commit()
 
     def count_submissions(self) -> int:
-        with self._connect() as conn:
-            return int(conn.execute("SELECT COUNT(*) FROM exam_submissions").fetchone()[0])
+        with Session(self._engine) as session:
+            return session.scalar(
+                select(func.count()).select_from(ExamSubmissionRow)
+            ) or 0
+
