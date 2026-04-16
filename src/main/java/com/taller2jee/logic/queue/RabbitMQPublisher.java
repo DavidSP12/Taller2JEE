@@ -7,10 +7,13 @@ import com.rabbitmq.client.ConnectionFactory;
 import com.taller2jee.common.model.EmailEvent;
 
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeoutException;
 
 public class RabbitMQPublisher implements QueuePublisher, AutoCloseable {
+    private static final Logger LOGGER = Logger.getLogger(RabbitMQPublisher.class.getName());
     private final String host;
     private final String queueName;
     private Connection connection;
@@ -53,13 +56,15 @@ public class RabbitMQPublisher implements QueuePublisher, AutoCloseable {
             if (channel != null && channel.isOpen()) {
                 channel.close();
             }
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            LOGGER.log(Level.FINE, "Failed to close RabbitMQ channel", ex);
         }
         try {
             if (connection != null && connection.isOpen()) {
                 connection.close();
             }
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            LOGGER.log(Level.FINE, "Failed to close RabbitMQ connection", ex);
         }
     }
 }

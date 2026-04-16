@@ -20,7 +20,7 @@ public class ExamRepository {
         this.entityManagerFactory = JpaEntityManagerFactoryProvider.create(dbPathOrJdbcUrl);
     }
 
-    public long saveSubmission(EvaluationSubmission submission, double score) {
+    public Long saveSubmission(EvaluationSubmission submission, double score) {
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
         try {

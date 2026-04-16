@@ -38,7 +38,7 @@ public class StudentRepository {
         }
     }
 
-    public long saveGrade(String studentId, String evaluationId, double score) {
+    public Long saveGrade(String studentId, String evaluationId, double score) {
         EntityManager em = entityManagerFactory.createEntityManager();
         EntityTransaction tx = em.getTransaction();
         try {
