@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package evaluation;
+
+service EvaluationService {
+  rpc SubmitEvaluation(SubmitEvaluationRequest) returns (SubmitEvaluationResponse);
+}
+
+message Answer {
+  string question_id = 1;
+  string answer = 2;
+}
+
+message SubmitEvaluationRequest {
+  string evaluation_id = 1;
+  string student_id = 2;
+  string student_name = 3;
+  string student_email = 4;
+  repeated Answer answers = 5;
+}
+
+message SubmitEvaluationResponse {
+  string evaluation_id = 1;
+  string student_id = 2;
+  double score = 3;
+  string status = 4;
+}
